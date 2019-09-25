@@ -43,12 +43,12 @@ end
   buf = CUDAdrv.Mem.DeviceBuffer(CU_NULL, 2, CUDAdrv.CuCurrentContext())
   @test Base.unsafe_wrap(CuArray, CU_NULL, 1; own=false).own == false
   @test Base.unsafe_wrap(CuArray, CU_NULL, 1; ctx=CUDAdrv.CuCurrentContext()).buf.ctx == CUDAdrv.CuCurrentContext()
-  @test Base.unsafe_wrap(CuArray, CU_NULL, 2)            == CuArray{Nothing,1}(buf, (2,))
-  @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, 2)   == CuArray{Nothing,1}(buf, (2,))
-  @test Base.unsafe_wrap(CuArray{Nothing,1}, CU_NULL, 2) == CuArray{Nothing,1}(buf, (2,))
-  @test Base.unsafe_wrap(CuArray, CU_NULL, (1,2))            == CuArray{Nothing,2}(buf, (1,2))
-  @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, (1,2))   == CuArray{Nothing,2}(buf, (1,2))
-  @test Base.unsafe_wrap(CuArray{Nothing,2}, CU_NULL, (1,2)) == CuArray{Nothing,2}(buf, (1,2))
+  @test Base.unsafe_wrap(CuArray, CU_NULL, 2)            == CuArray{Nothing,1}(buf, (2,); own=false)
+  @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, 2)   == CuArray{Nothing,1}(buf, (2,); own=false)
+  @test Base.unsafe_wrap(CuArray{Nothing,1}, CU_NULL, 2) == CuArray{Nothing,1}(buf, (2,); own=false)
+  @test Base.unsafe_wrap(CuArray, CU_NULL, (1,2))            == CuArray{Nothing,2}(buf, (1,2); own=false)
+  @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, (1,2))   == CuArray{Nothing,2}(buf, (1,2); own=false)
+  @test Base.unsafe_wrap(CuArray{Nothing,2}, CU_NULL, (1,2)) == CuArray{Nothing,2}(buf, (1,2); own=false)
 
   @test collect(CuArrays.zeros(2, 2)) == zeros(Float32, 2, 2)
   @test collect(CuArrays.ones(2, 2)) == ones(Float32, 2, 2)
@@ -168,8 +168,14 @@ end
   x = CuArray{Float64}(undef)
   x .= 1
   @test collect(x)[] == 1
-  x /= 2
-  @test collect(x)[] == 0.5
+  if VERSION >= v"1.3-"
+    # broken test that throws
+    # https://github.com/JuliaGPU/GPUArrays.jl/issues/204
+    @test_throws CUDAnative.InvalidIRError x /= 2
+  else
+    x /= 2
+    @test collect(x)[] == 0.5
+  end
 end
 
 @testset "SubArray" begin
