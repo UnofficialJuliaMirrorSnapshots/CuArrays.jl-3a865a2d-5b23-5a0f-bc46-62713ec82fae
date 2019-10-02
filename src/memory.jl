@@ -99,6 +99,10 @@ const pool = Ref{Union{Nothing,Module}}(nothing)
 const requested = Dict{Mem.Buffer,Int}()
 
 @inline function alloc(sz)
+  # 0-byte allocations shouldn't hit the pool
+  sz == 0 && return actual_alloc(sz)
+
+  @assert pool[] !== nothing "Cannot allocate before CuArrays has been initialized."
   alloc_stats.pool_time += Base.@elapsed begin
     @pool_timeit "pooled alloc" buf = pool[].alloc(sz)
   end
@@ -119,6 +123,9 @@ const requested = Dict{Mem.Buffer,Int}()
 end
 
 @inline function free(buf)
+  # 0-byte allocations shouldn't hit the pool
+  sizeof(buf) == 0 && return actual_free(buf)
+
   @assert haskey(requested, buf)
   delete!(requested, buf)
 
@@ -195,13 +202,30 @@ macro allocated(ex)
     end
 end
 
+
+"""
+    @time ex
+
+Run expression `ex` and report on execution time and GPU/CPU memory behavior. The GPU is
+synchronized right before and after executing `ex` to exclude any external effects.
+
+"""
 macro time(ex)
     quote
+        # @time might surround an application, so be sure to initialize CUDA before that
+        # FIXME: this should be done in CUDAdrv (`synchronize(ctx=CuCurrentOrNewContext()`)
+        #        but the CUDA initialization mechanics are part of CUDAnative.jl
+        CUDAnative.maybe_initialize("@time")
+
+        # coarse synchronization to exclude effects from previously-executed code
+        CUDAdrv.synchronize()
+
         local gpu_mem_stats0 = copy(alloc_stats)
         local cpu_mem_stats0 = Base.gc_num()
         local cpu_time0 = time_ns()
 
-        local val = $(esc(ex))
+        # fine-grained synchronization of the code under analysis
+        local val = @sync $(esc(ex))
 
         local cpu_time1 = time_ns()
         local cpu_mem_stats1 = Base.gc_num()
