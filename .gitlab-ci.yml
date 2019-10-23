@@ -1,57 +1,102 @@
-variables:
-  CI_IMAGE_TAG: 'cuda'
-  JULIA_NUM_THREADS: '4'
-
 include:
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/test.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/coverage.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/documentation.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v6.yml'
+
+image: juliagpu/cuda:10.1-cudnn7-cutensor-devel-ubuntu18.04
 
 
 # basic tests
 
-test:v1.0:
-  extends: .test:v1.0
+test:1.0:
+  extends:
+    - .julia:1.0
+    - .test
+  tags:
+    - nvidia
+    - sm_75
 
-test:v1.1:
-  extends: .test:v1.1
+test:1.1:
+  extends:
+    - .julia:1.1
+    - .test
+  tags:
+    - nvidia
+    - sm_75
 
-test:v1.2:
-  extends: .test:v1.2
+test:1.2:
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
+    - sm_75
 
-test:v1.3:
-  extends: .test:v1.3
+test:1.3:
+  extends:
+    - .julia:1.3
+    - .test
+  tags:
+    - nvidia
+    - sm_75
 
-test:dev:
-  extends: .test:dev
+test:nightly:
+  extends:
+    - .julia:nightly
+    - .test
+  tags:
+    - nvidia
+    - sm_75
   allow_failure: true
 
 
 # special tests
 
-test:v1.2-split:
-  extends: .test:v1.2
+test:split:
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
+    - sm_75
   variables:
     CUARRAYS_MEMORY_POOL: 'split'
 
 
 # reverse tests
 
-# NOTE: not using the Manifest (develop instead of instantiate) due to Pkg.jl#1423
+# NOTE: reverse testing is tricky because of Manifests. we instantiate both, give priority
+#       to this package's Manifest, and manually run tests outside of the test environment.
+#       that means we have to manually install Flux' test dependencies though.
 
 flux:
-  extends: .test:v1.2
+  extends: .julia:1.2
+  tags:
+    - nvidia
   script:
+    - export FLUX="$HOME/.julia/dev/Flux"
     - julia -e 'using Pkg;
-                Pkg.develop(PackageSpec(path=pwd()));
-                Pkg.build();'
-    - julia -e 'using Pkg;
-                Pkg.add(PackageSpec(name="Flux", rev="master"));
-                Pkg.test("Flux");'
+                Pkg.develop("Flux");'
+    - julia --project -e 'using Pkg;
+                          Pkg.instantiate()'
+    - julia --project=$FLUX -e 'using Pkg;
+                                Pkg.instantiate();
+                                Pkg.add(["Documenter"])'
+    - JULIA_LOAD_PATH=".:$FLUX::" julia $FLUX/test/runtests.jl
   allow_failure: true
 
 
-# deployment
+# other tasks
+
+coverage:
+  extends:
+    - .julia:1.2
+    - .coverage
+
+documentation:
+  extends:
+    - .julia:1.2
+    - .documentation
+  tags:
+    - nvidia
 
 pages:
   stage: deploy
