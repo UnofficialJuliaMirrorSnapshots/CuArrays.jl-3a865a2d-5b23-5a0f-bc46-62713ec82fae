@@ -72,9 +72,9 @@ function Base._mapreducedim!(f, op, R::CuArray{T}, A::CuArray{T}) where {T}
         kernel_threads = CUDAnative.maxthreads(parallel_kernel)
         ## by the device
         dev = CUDAdrv.device()
-        block_threads = (x=attribute(dev, CUDAdrv.MAX_BLOCK_DIM_X),
-                         y=attribute(dev, CUDAdrv.MAX_BLOCK_DIM_Y),
-                         total=attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK))
+        block_threads = (x=attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X),
+                         y=attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y),
+                         total=attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK))
 
         # figure out a legal launch configuration
         y_thr = min(nextpow(2, Rlength ÷ 512 + 1), 512, block_threads.y, kernel_threads)
@@ -98,7 +98,7 @@ end
 
 import Base.minimum, Base.maximum, Base.reduce
 
-_reduced_dims(x::CuArray, ::Colon) = Tuple(ones(Int, ndims(x)))
+_reduced_dims(x::CuArray, ::Colon) = Tuple(Base.ones(Int, ndims(x)))
 _reduced_dims(x::CuArray, dims) = Base.reduced_indices(x, dims)
 
 _initarray(x::CuArray{T}, dims, init) where {T} = fill!(similar(x, T,     _reduced_dims(x, dims)), init)

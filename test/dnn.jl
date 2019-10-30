@@ -4,7 +4,7 @@ using CuArrays.CUDNN
 
 if CuArrays.libcudnn === nothing
 @warn "Not testing CUDNN"
-haskey(ENV, "CI") && error("All optional libraries should be available on CI")
+haskey(ENV, "CI_THOROUGH") && error("All optional libraries should be available on this CI")
 else
 @info "Testing CUDNN $(CUDNN.version())"
 
@@ -78,6 +78,14 @@ end
   @test testf(CuArrays.CUDNN.cudnnAddTensor, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
   @test testf(CuArrays.CUDNN.cudnnActivationForward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
   @test testf(CuArrays.CUDNN.cudnnActivationBackward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
+end
+
+@testset "Batchnorm" begin
+  v = rand(2) |> cu
+  m = rand(2, 5) |> cu
+  for training in (false, true)
+    CuArrays.CUDNN.batchnorm(v, v, m, v, v, 1.0; training=training)
+  end
 end
 
 end
