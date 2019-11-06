@@ -3,7 +3,6 @@ module CUFFT
 using CUDAapi
 
 using ..CuArrays
-using ..CuArrays: libcufft
 import ..CuArrays: unsafe_free!
 
 using CUDAdrv
@@ -11,17 +10,16 @@ using CUDAdrv: CUstream
 
 using CEnum
 
+# core library
 include("libcufft_common.jl")
 include("error.jl")
-
-version() = VersionNumber(cufftGetProperty(CUDAapi.MAJOR_VERSION),
-                          cufftGetProperty(CUDAapi.MINOR_VERSION),
-                          cufftGetProperty(CUDAapi.PATCH_LEVEL))
-
 include("libcufft.jl")
 
+# low-level wrappers
 include("util.jl")
 include("wrappers.jl")
+
+# high-level integrations
 include("fft.jl")
 
 end

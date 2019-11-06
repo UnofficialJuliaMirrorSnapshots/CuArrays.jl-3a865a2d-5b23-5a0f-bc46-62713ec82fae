@@ -8,13 +8,22 @@ using CUDAdrv: CUstream
 import CUDAnative
 
 using ..CuArrays
-using ..CuArrays: libcublas, active_context, unsafe_free!
+using ..CuArrays: active_context, unsafe_free!
 using LinearAlgebra
 
 using CEnum
 
+# core library
 include("libcublas_common.jl")
 include("error.jl")
+include("libcublas.jl")
+
+# low-level wrappers
+include("util.jl")
+include("wrappers.jl")
+
+# high-level integrations
+include("linalg.jl")
 
 const _handles = Dict{CuContext,cublasHandle_t}()
 const _xt_handles = Dict{CuContext,cublasXtHandle_t}()
@@ -56,15 +65,5 @@ function xt_handle()
     end
     return _xt_handle[]
 end
-
-version() = VersionNumber(cublasGetProperty(CUDAapi.MAJOR_VERSION),
-                          cublasGetProperty(CUDAapi.MINOR_VERSION),
-                          cublasGetProperty(CUDAapi.PATCH_LEVEL))
-
-include("libcublas.jl")
-include("wrappers.jl")
-include("util.jl")
-include("highlevel.jl")
-include("linalg.jl")
 
 end

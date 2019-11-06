@@ -16,10 +16,10 @@ version = "1.0.0"
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
 [[BinaryProvider]]
-deps = ["Libdl", "Logging", "SHA"]
-git-tree-sha1 = "c7361ce8a2129f20b0e05a89f7070820cfed6648"
+deps = ["Libdl", "SHA"]
+git-tree-sha1 = "29995a7b317bbd06be147e1974a3541ce2502dca"
 uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
-version = "0.5.6"
+version = "0.5.7"
 
 [[CEnum]]
 git-tree-sha1 = "62847acab40e6855a9b5905ccb99c2b5cf6b3ebb"
@@ -28,9 +28,9 @@ version = "0.2.0"
 
 [[CSTParser]]
 deps = ["Tokenize"]
-git-tree-sha1 = "c69698c3d4a7255bc1b4bc2afc09f59db910243b"
+git-tree-sha1 = "99dda94f5af21a4565dc2b97edf6a95485f116c3"
 uuid = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
-version = "0.6.2"
+version = "1.0.0"
 
 [[CUDAapi]]
 deps = ["Libdl", "Logging"]
@@ -39,20 +39,16 @@ uuid = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
 version = "1.2.0"
 
 [[CUDAdrv]]
-deps = ["CEnum", "CUDAapi", "Libdl", "Printf"]
-git-tree-sha1 = "a808ad33765eb029cfe11cda3e92eb1fc8ecce07"
-repo-rev = "master"
-repo-url = "https://github.com/JuliaGPU/CUDAdrv.jl.git"
+deps = ["CEnum", "Printf"]
+git-tree-sha1 = "90fa52c4acb2fadf7be48b0d73d9865c16ab9908"
 uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
-version = "3.1.0"
+version = "4.0.1"
 
 [[CUDAnative]]
-deps = ["Adapt", "CUDAapi", "CUDAdrv", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "Logging", "Printf", "TimerOutputs"]
-git-tree-sha1 = "da1c10d8bbc65cec4d7d3ed836c4827893fcda91"
-repo-rev = "master"
-repo-url = "https://github.com/JuliaGPU/CUDAnative.jl.git"
+deps = ["Adapt", "CEnum", "CUDAapi", "CUDAdrv", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "Printf", "TimerOutputs"]
+git-tree-sha1 = "5afb86987488ce2f31f9e5426f551d2480d17666"
 uuid = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
-version = "2.4.0"
+version = "2.5.0"
 
 [[Compat]]
 deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
@@ -98,17 +94,15 @@ version = "1.0.1"
 
 [[FillArrays]]
 deps = ["LinearAlgebra", "Random", "SparseArrays"]
-git-tree-sha1 = "a2e22cd210dfa3ad1e1e6291fb733741dfabcc9f"
+git-tree-sha1 = "de38b0253ade98340fabaf220f368f6144541938"
 uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "0.7.3"
+version = "0.7.4"
 
 [[GPUArrays]]
-deps = ["Adapt", "FFTW", "FillArrays", "LinearAlgebra", "Printf", "Random", "Serialization", "StaticArrays", "Test"]
-git-tree-sha1 = "5662b410d9733a0630cc3496bc56c4b0dae5dfb4"
-repo-rev = "master"
-repo-url = "https://github.com/JuliaGPU/GPUArrays.jl.git"
+deps = ["Adapt", "FFTW", "FillArrays", "LinearAlgebra", "Printf", "Random", "Serialization", "Test"]
+git-tree-sha1 = "8d74ced24448c52b539a23d107bd2424ee139c0f"
 uuid = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
-version = "1.0.3"
+version = "1.0.4"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
@@ -171,7 +165,7 @@ uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 version = "0.3.7"
 
 [[Pkg]]
-deps = ["Dates", "LibGit2", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
+deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[Printf]]
@@ -214,12 +208,6 @@ uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
 [[SparseArrays]]
 deps = ["LinearAlgebra", "Random"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-
-[[StaticArrays]]
-deps = ["LinearAlgebra", "Random", "Statistics"]
-git-tree-sha1 = "1085ffbf5fd48fdba64ef8e902ca429c4e1212d3"
-uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "0.11.1"
 
 [[Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]

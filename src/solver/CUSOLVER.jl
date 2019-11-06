@@ -1,7 +1,7 @@
 module CUSOLVER
 
 using ..CuArrays
-using ..CuArrays: libcusolver, active_context, _getindex, unsafe_free!
+using ..CuArrays: active_context, _getindex, unsafe_free!
 
 using ..CUBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
 using ..CUSPARSE: cusparseMatDescr_t
@@ -15,18 +15,17 @@ import CUDAnative
 
 using CEnum
 
+# core library
 include("libcusolver_common.jl")
 include("error.jl")
-
-version() = VersionNumber(cusolverGetProperty(CUDAapi.MAJOR_VERSION),
-                          cusolverGetProperty(CUDAapi.MINOR_VERSION),
-                          cusolverGetProperty(CUDAapi.PATCH_LEVEL))
-
 include("libcusolver.jl")
+
+# low-level wrappers
+include("util.jl")
 include("wrappers.jl")
-include("sparse.jl")
-include("dense.jl")
-include("highlevel.jl")
+
+# high-level integrations
+include("linalg.jl")
 
 const _dense_handles = Dict{CuContext,cusolverDnHandle_t}()
 const _dense_handle = Ref{cusolverDnHandle_t}(C_NULL)
