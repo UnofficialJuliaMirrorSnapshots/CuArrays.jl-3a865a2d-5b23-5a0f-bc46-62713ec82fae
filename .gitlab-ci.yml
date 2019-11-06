@@ -1,23 +1,114 @@
-variables:
-  CI_IMAGE_TAG: 'cuda'
-  JULIA_NUM_THREADS: '4'
-
 include:
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/common.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/test_v1.0.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/test_v1.1.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/test_v1.2.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/test_dev.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/coverage_v1.1.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/documentation_v1.1.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v6.yml'
 
-test:dev:
+image: juliagpu/cuda:10.1-cudnn7-cutensor-devel-ubuntu18.04
+
+
+# Julia versions
+
+julia:1.0:
+  extends:
+    - .julia:1.0
+    - .test
+  tags:
+    - nvidia
+
+julia:1.1:
+  extends:
+    - .julia:1.1
+    - .test
+  tags:
+    - nvidia
+
+# the "primary" target, where we require thorough tests
+# (this requires a recent GPU)
+julia:1.2:
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
+    - sm_75
+  variables:
+    CI_THOROUGH: 'true'
+
+julia:1.3:
+  extends:
+    - .julia:1.3
+    - .test
+  tags:
+    - nvidia
+
+julia:nightly:
+  extends:
+    - .julia:nightly
+    - .test
+  tags:
+    - nvidia
   allow_failure: true
+
+
+# special tests
+
+pool:none:
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
+  variables:
+    CUARRAYS_MEMORY_POOL: 'none'
+
+pool:simple:
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
+  variables:
+    CUARRAYS_MEMORY_POOL: 'simple'
+
+pool:split:
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
+  variables:
+    CUARRAYS_MEMORY_POOL: 'split'
+
+
+# reverse tests
+
+# NOTE: not using the Manifest (develop instead of instantiate) due to Pkg.jl#1423
+
+flux:
+  extends: .julia:1.2
+  tags:
+    - nvidia
+  script:
+    - julia -e 'using Pkg;
+                Pkg.develop(PackageSpec(path=pwd()));
+                Pkg.build();'
+    - julia -e 'using Pkg;
+                Pkg.add("Flux");
+                Pkg.test("Flux");'
+  allow_failure: true
+
+
+# other tasks
 
 coverage:
-  allow_failure: true
-  only:
-    - master
+  extends:
+    - .julia:1.2
+    - .coverage
+
+documentation:
+  extends:
+    - .julia:1.2
+    - .documentation
+  tags:
+    - nvidia
 
 pages:
   stage: deploy
@@ -28,18 +119,3 @@ pages:
     - public
   only:
     - master
-
-flux:
-  stage: test
-  image: "juliagpu/julia:v1.1-cuda"
-  script:
-    - mkdir $JULIA_DEPOT_PATH # Pkg.jl#325
-    - julia -e 'using Pkg;
-                Pkg.develop([PackageSpec(path=pwd());
-                             [PackageSpec(name=pkg)
-                              for pkg in split(get(ENV,"CI_DEV_PKGS",""))]]);
-                Pkg.build("CuArrays")'
-    - julia -e 'using Pkg;
-                Pkg.add("Flux");
-                Pkg.test("Flux")'
-  allow_failure: true

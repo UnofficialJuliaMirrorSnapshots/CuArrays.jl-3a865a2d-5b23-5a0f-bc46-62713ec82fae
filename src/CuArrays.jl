@@ -12,7 +12,6 @@ using Adapt
 
 using Requires
 
-
 ## discovery
 
 let
@@ -30,7 +29,7 @@ let
     end
 
     # optional libraries
-    for name in ("cudnn", )
+    for name in ("cudnn", "cutensor")
         lib = Symbol("lib$name")
         path = find_cuda_library(name, toolkit)
         if path !== nothing
@@ -45,6 +44,10 @@ let
         # or a run-time error if the library is not available (for use in ccall expressions)
         exception = :(error($"Your installation does not provide $lib, CuArrays.$(uppercase(name)) is unavailable"))
         @eval macro $lib() $lib === nothing ? $(QuoteNode(exception)) : $lib end
+
+        # provide a function for external use (a la CUDAapi.has_cuda)
+        fn = Symbol("has_$name")
+        @eval (export $fn; $fn() = $lib !== nothing)
     end
 end
 
@@ -74,6 +77,7 @@ include("solver/CUSOLVER.jl")
 include("fft/CUFFT.jl")
 include("rand/CURAND.jl")
 include("dnn/CUDNN.jl")
+include("tensor/CUTENSOR.jl")
 
 include("nnlib.jl")
 
@@ -81,7 +85,6 @@ include("deprecated.jl")
 
 
 ## initialization
-
 function __init__()
     # package integrations
     @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
@@ -98,6 +101,7 @@ function __init__()
         CUSPARSE._handle[] = C_NULL
         CURAND._generator[] = nothing
         CUDNN._handle[] = C_NULL
+        CUTENSOR._handle[] = C_NULL
     end
     push!(CUDAnative.device!_listeners, callback)
 
@@ -108,7 +112,6 @@ function __init__()
     end
 
     __init_memory__()
-    __init_pool_()
 end
 
 end # module

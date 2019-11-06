@@ -1,4 +1,3 @@
-using ForwardDiff: Dual
 using LinearAlgebra
 using Adapt: adapt
 
@@ -43,12 +42,12 @@ end
   buf = CUDAdrv.Mem.DeviceBuffer(CU_NULL, 2, CUDAdrv.CuCurrentContext())
   @test Base.unsafe_wrap(CuArray, CU_NULL, 1; own=false).own == false
   @test Base.unsafe_wrap(CuArray, CU_NULL, 1; ctx=CUDAdrv.CuCurrentContext()).buf.ctx == CUDAdrv.CuCurrentContext()
-  @test Base.unsafe_wrap(CuArray, CU_NULL, 2)            == CuArray{Nothing,1}(buf, (2,))
-  @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, 2)   == CuArray{Nothing,1}(buf, (2,))
-  @test Base.unsafe_wrap(CuArray{Nothing,1}, CU_NULL, 2) == CuArray{Nothing,1}(buf, (2,))
-  @test Base.unsafe_wrap(CuArray, CU_NULL, (1,2))            == CuArray{Nothing,2}(buf, (1,2))
-  @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, (1,2))   == CuArray{Nothing,2}(buf, (1,2))
-  @test Base.unsafe_wrap(CuArray{Nothing,2}, CU_NULL, (1,2)) == CuArray{Nothing,2}(buf, (1,2))
+  @test Base.unsafe_wrap(CuArray, CU_NULL, 2)            == CuArray{Nothing,1}(buf, (2,); own=false)
+  @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, 2)   == CuArray{Nothing,1}(buf, (2,); own=false)
+  @test Base.unsafe_wrap(CuArray{Nothing,1}, CU_NULL, 2) == CuArray{Nothing,1}(buf, (2,); own=false)
+  @test Base.unsafe_wrap(CuArray, CU_NULL, (1,2))            == CuArray{Nothing,2}(buf, (1,2); own=false)
+  @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, (1,2))   == CuArray{Nothing,2}(buf, (1,2); own=false)
+  @test Base.unsafe_wrap(CuArray{Nothing,2}, CU_NULL, (1,2)) == CuArray{Nothing,2}(buf, (1,2); own=false)
 
   @test collect(CuArrays.zeros(2, 2)) == zeros(Float32, 2, 2)
   @test collect(CuArrays.ones(2, 2)) == ones(Float32, 2, 2)
@@ -125,10 +124,6 @@ end
     using NNlib
 
     @test testf(x -> logσ.(x), rand(5))
-
-    f(x) = logσ.(x)
-    ds = Dual.(rand(5),1)
-    @test f(ds) ≈ collect(f(CuArray(ds)))
   end
 end
 
@@ -140,14 +135,42 @@ end
 
   @test testf(x -> sum(x), rand(2, 3))
   @test testf(x -> prod(x), rand(2, 3))
+
+  @test testf(x -> minimum(x), rand(2, 3))
+  @test testf(x -> minimum(x, dims=2), rand(2, 3))
+  @test testf(x -> minimum(x, dims=(2, 3)), rand(2, 3, 4))
+
+  @test testf(x -> maximum(x), rand(2, 3))
+  @test testf(x -> maximum(x, dims=2), rand(2, 3))
+  @test testf(x -> maximum(x, dims=(2, 3)), rand(2, 3, 4))
+
+  myreducer(x1, x2) = x1 + x2 # bypass optimisations for sum()
+  @test testf(x -> reduce(myreducer, x, dims=(2, 3), init=0.0), rand(2, 3, 4))
+  @test testf(x -> reduce(myreducer, x, init=0.0), rand(2, 3))
+  @test testf(x -> reduce(myreducer, x, dims=2, init=42.0), rand(2, 3))
+
+  ex = ErrorException("Please supply a neutral element for &. E.g: mapreduce(f, &, A; init = 1)")
+  @test_throws ex mapreduce(t -> t > 0.5, &, cu(rand(2, 3)))
+  @test testf(x -> mapreduce(t -> t > 0.5, &, x, init=true), rand(2, 3))
+
+  ex = UndefKeywordError(:init)
+  cub = map(t -> t > 0.5, cu(rand(2, 3)))
+  @test_throws ex reduce(|, cub)
+  @test testf(x -> reduce(|, x, init=false), map(t -> t > 0.5, cu(rand(2, 3))))
 end
 
 @testset "0D" begin
   x = CuArray{Float64}(undef)
   x .= 1
   @test collect(x)[] == 1
-  x /= 2
-  @test collect(x)[] == 0.5
+  if VERSION >= v"1.3-"
+    # broken test that throws
+    # https://github.com/JuliaGPU/GPUArrays.jl/issues/204
+    @test_throws CUDAnative.InvalidIRError x /= 2
+  else
+    x /= 2
+    @test collect(x)[] == 0.5
+  end
 end
 
 @testset "SubArray" begin
@@ -206,6 +229,12 @@ end
     x[1,:] .= 42
     @test Array(x)[1,1] == 42
   end
+
+  # bug in copyto!
+  ## needless N type parameter
+  @test testf((x,y)->copyto!(y, selectdim(x, 2, 1)), ones(2,2,2), zeros(2,2))
+  ## inability to copyto! smaller destination
+  @test testf((x,y)->copyto!(y, selectdim(x, 2, 1)), ones(2,2,2), zeros(3,3))
 end
 
 @testset "reshape" begin
@@ -236,13 +265,28 @@ end
 end
 
 @testset "accumulate" begin
-  @test accumulate(+, CuArray{Int}(undef, 2)) isa CuVector
-  @test cumsum(CuArray{Int}(undef, 2)) isa CuVector
-  @test cumprod(CuArray{Int}(undef, 2)) isa CuVector
+  for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) # small, large, odd & even, pow2 and not
+    @test testf(x->accumulate(+, x), rand(n))
+  end
 
-  @test testf(x->accumulate(+, x), rand(2))
-  @test testf(x->accumulate(+, x; dims=2), rand(2))
+  # multidimensional
+  for (sizes, dims) in ((2,) => 2,
+                        (3,4,5) => 2,
+                        (1, 70, 50, 20) => 3)
+    @test testf(x->accumulate(+, x; dims=dims), rand(Int, sizes))
+  end
+
+  # using initializer
+  for (sizes, dims) in ((2,) => 2,
+                        (3,4,5) => 2,
+                        (1, 70, 50, 20) => 3)
+    @test testf(x->accumulate(+, x; dims=dims, init=100.), rand(Int, sizes))
+  end
+
+  # in place
   @test testf(x->(accumulate!(+, x, copy(x)); x), rand(2))
+
+  # specialized
   @test testf(cumsum, rand(2))
   @test testf(cumprod, rand(2))
 end
@@ -303,13 +347,26 @@ end
 end
 
 @testset "reverse" begin
+    # 1-d out-of-place
     @test testf(x->reverse(x), rand(1000))
     @test testf(x->reverse(x, 10), rand(1000))
     @test testf(x->reverse(x, 10, 90), rand(1000))
 
+    # 1-d in-place
     @test testf(x->reverse!(x), rand(1000))
     @test testf(x->reverse!(x, 10), rand(1000))
     @test testf(x->reverse!(x, 10, 90), rand(1000))
+
+    # n-d out-of-place
+    for shape in ([1, 2, 4, 3], [4, 2], [5], [2^5, 2^5, 2^5]),
+        dim in 1:length(shape)
+      @test testf(x->reverse(x; dims=dim), rand(shape...))
+
+      cpu = rand(shape...)
+      gpu = CuArray(cpu)
+      reverse!(gpu; dims=dim)
+      @test Array(gpu) == reverse(cpu; dims=dim)
+    end
 end
 
 @testset "permutedims" begin
@@ -317,4 +374,9 @@ end
 
     inds = rand(1:100, 150, 150)
     @test testf(x->permutedims(view(x, inds, :), (3, 2, 1)), rand(100, 100))
+end
+
+@testset "findall" begin
+    @test testf(x->findall(x), rand(Bool, 100))
+    @test testf(x->findall(y->y>0.5, x), rand(100))
 end

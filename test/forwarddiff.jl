@@ -1,5 +1,6 @@
 @testset "ForwardDiff" begin
   using ForwardDiff
+  using ForwardDiff: Dual
 
   @info "Testing ForwardDiff integration"
 
@@ -64,5 +65,22 @@
 
     @test testf(x->CUDAnative.pow(x, x), x->x^x, x32)
     @test testf(x->CUDAnative.pow(x, x), x->x^x, x64)
+  end
+
+  @testset "LITERAL_POW" begin
+    for x in [rand(Float32, 10), rand(Float64, 10)],
+        p in [1, 2, 3, 4, 5]
+      @test ForwardDiff.gradient(_x -> sum(_x .^ p), x) ≈ p .* (x .^ (p - 1))
+    end
+  end
+
+  @testset "Broadcast Fix" begin
+    if CuArrays.libcudnn !== nothing
+      using NNlib
+
+      f(x) = logσ.(x)
+      ds = Dual.(rand(5),1)
+      @test f(ds) ≈ collect(f(CuArray(ds)))
+    end
   end
 end
