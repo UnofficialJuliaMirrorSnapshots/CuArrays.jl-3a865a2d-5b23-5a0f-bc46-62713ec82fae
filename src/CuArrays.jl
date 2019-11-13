@@ -51,22 +51,22 @@ include("deprecated.jl")
 
 ## initialization
 
+const __initialized__ = Ref(false)
+functional() = __initialized__[]
+
+export has_cudnn, has_cutensor
+const libraries = Dict{String,Union{String,Nothing}}()
+has_cudnn() = libraries["cudnn"] !== nothing && CUDNN.libcudnn !== nothing
+has_cutensor() = libraries["cutensor"] !== nothing && CUTENSOR.libcutensor !== nothing
+
 function __init__()
-    if ccall(:jl_generating_output, Cint, ()) == 1
-        # don't initialize when we, or any package that depends on us, is precompiling.
-        # this makes it possible to precompile on systems without CUDA,
-        # at the expense of using the packages in global scope.
-        return
-    end
-
-    silent = parse(Bool, get(ENV, "CUDA_INIT_SILENT", "false"))
-
-    # discovery
+    # discover libraries
     toolkit = find_toolkit()
-    ## required libraries that are part of the CUDA toolkit
-    for name in ("cublas", "cusparse", "cusolver", "cufft", "curand")
+    for name in ("cublas", "cusparse", "cusolver", "cufft", "curand", "cudnn", "cutensor")
+        mod = getfield(CuArrays, Symbol(uppercase(name)))
         lib = Symbol("lib$name")
         path = find_cuda_library(name, toolkit)
+        libraries[name] = path
         if path !== nothing
             dir = dirname(path)
             if !(dir in Libdl.DL_LOAD_PATH)
@@ -74,35 +74,22 @@ function __init__()
             end
         end
     end
-    ## optional libraries
-    for name in ("cudnn", "cutensor")
-        lib = Symbol("lib$name")
-        path = find_cuda_library(name, toolkit)
-        if path === nothing
-            silent || @warn "Could not find $lib, CuArrays.$(uppercase(name)) will be unavailable."
-        else
-            dir = dirname(path)
-            if !(dir in Libdl.DL_LOAD_PATH)
-                push!(Libdl.DL_LOAD_PATH, dir)
-            end
-        end
-
-        # function to check for availability
-        fn = Symbol("has_$name")
-        @eval (export $fn; $fn() = $(path !== nothing))
-    end
 
     try
-        # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
-        Base.invokelatest(__hidden_init__)
-        @eval functional() = true
+        # barrier to avoid compiling `ccall`s to unavailable libraries
+        inferencebarrier(__hidden_init__)()
+        __initialized__[] = true
     catch ex
         # don't actually fail to keep the package loadable
-        silent || @error """CuArrays.jl failed to initialize; the package will not be functional.
-                            To silence this message, import with ENV["CUDA_INIT_SILENT"]=true,
-                            and be sure to inspect the value of CuArrays.functional().""" exception=(ex, catch_backtrace())
-        @eval functional() = false
+        @debug("CuArrays.jl failed to initialize; the package will not be functional.",
+               exception=(ex, catch_backtrace()))
     end
+end
+
+if VERSION >= v"1.3.0-DEV.35"
+    using Base: inferencebarrier
+else
+    inferencebarrier(@nospecialize(x)) = Ref{Any}(x)[]
 end
 
 function __hidden_init__()
@@ -116,10 +103,11 @@ function __hidden_init__()
     CUSOLVER.version()
     CUFFT.version()
     CURAND.version()
+    # CUDNN and CUTENSOR are optional
 
     # library compatibility
     if has_cutensor()
-        ver = Base.invokelatest(CUTENSOR.version)
+        ver = inferencebarrier(CUTENSOR.version)()
         if ver.major != 0 || ver.minor != 2
             error("CuArrays.jl only supports CUTENSOR 0.2")
         end
